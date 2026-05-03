@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/
+
+# Logs
+*.log
+youtube_collector.log
+run_output.txt
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+
+# Windows specific
+*.bat
+run.bat
+run_debug.bat
+run_log.bat
+start_server.bat
+stop_server.bat
+
+# GUI files not needed for server
+gui.py
+main.py
+requirements-desktop.txt
+youtube-kakao-sender.skill
+
+# Nginx config (not needed inside Cloud Run since Cloud Run handles HTTPS routing)
+nginx.conf
