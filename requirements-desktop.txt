@@ -1,0 +1,5 @@
+PyQt6>=6.4.0
+yt-dlp>=2023.11.16
+loguru>=0.7.0
+fastapi>=0.100.0
+uvicorn>=0.23.0

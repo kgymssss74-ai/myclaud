@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YouTube Collector</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Lock Screen -->
+    <div id="lock-screen" class="lock-screen">
+        <div class="lock-card glass-effect">
+            <div class="lock-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h2>보안 잠금</h2>
+            <p>액세스 코드를 입력하세요.</p>
+            <input type="password" id="pin-input" placeholder="암호 입력" maxlength="20" autocomplete="off">
+            <button id="unlock-btn" class="primary-btn">잠금 해제</button>
+            <p id="lock-error" class="lock-error hidden">접근이 거부되었습니다.</p>
+        </div>
+    </div>
+
+    <div class="app-container hidden" id="main-app">
+        <header class="app-header">
+            <h1><i class="fab fa-youtube"></i> YouTube Collector</h1>
+            <p>S25 최적화 수집 엔진</p>
+        </header>
+
+        <main class="app-content">
+            <div class="card glass-effect">
+                <div class="form-group">
+                    <label for="keyword">검색 키워드</label>
+                    <input type="text" id="keyword" placeholder="예: audio engine C++" autocomplete="off">
+                </div>
+
+                <div class="date-row">
+                    <div class="form-group">
+                        <label for="date-after">시작일</label>
+                        <input type="date" id="date-after">
+                    </div>
+                    <div class="form-group">
+                        <label for="date-before">종료일</label>
+                        <input type="date" id="date-before">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="max-links">최대 수집 개수</label>
+                    <select id="max-links">
+                        <option value="50">50개</option>
+                        <option value="100">100개</option>
+                        <option value="200">200개</option>
+                        <option value="300">300개</option>
+                    </select>
+                </div>
+
+                <button id="run-btn" class="primary-btn">
+                    <i class="fas fa-play"></i> 수집 시작
+                </button>
+            </div>
+
+            <div id="progress-container" class="card glass-effect hidden">
+                <div class="progress-info">
+                    <span id="progress-text">대기 중...</span>
+                    <span id="progress-pct">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                </div>
+            </div>
+
+            <div id="log-container" class="card glass-effect">
+                <h3><i class="fas fa-terminal"></i> 실행 로그</h3>
+                <div id="log-view" class="log-view"></div>
+            </div>
+
+            <div id="results-container" class="card glass-effect hidden">
+                <div class="results-header">
+                    <h3><i class="fas fa-list-ul"></i> 수집 결과 (<span id="result-count">0</span>)</h3>
+                    <button id="copy-btn" class="icon-btn" title="결과 링크 복사">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <div id="results-list" class="results-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
