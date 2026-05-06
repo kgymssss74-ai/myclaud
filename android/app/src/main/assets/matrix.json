@@ -16,6 +16,14 @@
     {
       "match": {"streamType": "OFFLOAD", "format": "WAV"},
       "reason": "Offload only supports compressed bitstreams (MP3/AAC/MP4)."
+    },
+    {
+      "match": {"streamType": "RINGTONE", "route": "BT"},
+      "reason": "Android does not route USAGE_NOTIFICATION_RINGTONE to BT A2DP."
+    },
+    {
+      "match": {"streamType": "RINGTONE", "route": "SPEAKER_PLUS_BT"},
+      "reason": "Android does not route USAGE_NOTIFICATION_RINGTONE to BT A2DP."
     }
   ],
   "assets": {

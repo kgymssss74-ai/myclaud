@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
@@ -43,7 +43,10 @@ fun MatrixScreen(modifier: Modifier = Modifier) {
     var summary by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = {
                 running = true
@@ -71,10 +74,8 @@ fun MatrixScreen(modifier: Modifier = Modifier) {
                     Text("Methodology decision required", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
                     Text("Case: ${req.caseId}")
                     if (req.missingHints.isNotEmpty()) Text("Missing: ${req.missingHints.joinToString()}")
-                    LazyColumn {
-                        items(req.verdicts) { v ->
-                            Text("- ${v.name}: ${v.result} (exp=${v.expected}, act=${v.actual})")
-                        }
+                    req.verdicts.forEach { v ->
+                        Text("- ${v.name}: ${v.result} (exp=${v.expected}, act=${v.actual})")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { gate.resolve(com.myclaud.audioverify.core.runner.RelaxDecision.ACCEPT_RELAXED) }) { Text("Accept relaxed") }

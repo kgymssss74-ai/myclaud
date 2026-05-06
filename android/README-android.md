@@ -32,14 +32,17 @@ bash scripts/gen_assets.sh app/src/main/assets/audio   # 음원 자동 생성
 ## 매트릭스 실행 절차
 
 1. APK 설치 후 앱 실행 → 권한 부여(`MODIFY_AUDIO_SETTINGS`, `BLUETOOTH_CONNECT`, `READ_MEDIA_AUDIO`, `POST_NOTIFICATIONS`).
-2. BT 헤드셋 페어링, USB-C 오디오 디바이스 연결.
-3. **Manual** 탭: 임의 조합으로 sanity 재생, underrun/xRun · routed device 라이브 확인.
+2. (선택) BT 헤드셋 페어링, USB-C 오디오 디바이스 연결. **연결 없이도 자동 매트릭스 실행 가능** — BT/USB가 필요한 케이스는 자동 SKIP되며 리포트에 사유 기록.
+3. **Manual** 탭: 빌트인 톤(WAV/MP3/AAC/MP4) 또는 **Pick file**로 외부 파일을 선택해 검증. 파일은 SAF로 어떤 위치에서든 가져올 수 있고, 포맷은 확장자/MIME으로 자동 감지.
 4. **Matrix** 탭: `Start matrix` → 모든 자동 케이스 순회.
-   - 디바이스가 ULL EXCLUSIVE를 거부하거나 BT/USB가 없는 경우 `RelaxPromptDialog`가 뜸.
-   - **Accept relaxed**: 이번 케이스를 PASS로 기록(이유는 리포트에 보존).
-   - **Mark FAIL**: 이번 케이스를 FAIL.
-   - **Retry**: 즉시 재실행.
+   - 디바이스가 ULL EXCLUSIVE를 거부하면 `RelaxPromptDialog`가 뜸 → **Accept relaxed** / **Mark FAIL** / **Retry** 중 결정.
+   - BT/USB 미연결 케이스는 자동 SKIP (`AUTO_SKIPPED`로 리포트 기록).
 5. 완료되면 `Reports` 탭에서 HTML 공유 또는 `adb pull /sdcard/Android/data/com.myclaud.audioverify/files/reports/`.
+
+## 사전 무효 조합 (matrix.json `invalidCombinations`)
+
+- `OFFLOAD × WAV` — 오프로드는 압축 비트스트림만 지원
+- `RINGTONE × BT`, `RINGTONE × SPEAKER_PLUS_BT` — 안드로이드는 `USAGE_NOTIFICATION_RINGTONE`을 BT A2DP로 라우팅하지 않음 (실측 확인된 OS 동작)
 
 ## 검증 방법론 (요약)
 

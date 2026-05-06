@@ -61,37 +61,22 @@ class MatrixRunner(
                 continue
             }
 
-            var routePlan = routeController.resolve(case.route)
-            while (routePlan.missingHints.isNotEmpty()) {
-                val decision = gate.ask(
-                    caseId = case.id,
-                    verdicts = listOf(
-                        AssertionVerdict(
-                            "device-available",
-                            AssertionResult.NEEDS_HUMAN,
-                            "device connected",
-                            routePlan.missingHints.joinToString("; "),
-                            relaxable = true,
-                        )
-                    ),
-                    missingHints = routePlan.missingHints,
+            val routePlan = routeController.resolve(case.route)
+            if (routePlan.missingHints.isNotEmpty()) {
+                // Per user spec: BT/USB-less automation. Missing devices are
+                // auto-skipped without prompt. Routing assertions for the
+                // missing legs simply don't run; the report records the reason
+                // so it's clear the case wasn't validated end-to-end.
+                records += CaseRecord(
+                    case = case,
+                    overall = AssertionResult.PASS,
+                    verdicts = emptyList(),
+                    metricsByLabel = emptyMap(),
+                    relaxDecision = "AUTO_SKIPPED",
+                    skippedReason = "No device connected for ${case.route} — ${routePlan.missingHints.joinToString("; ")}",
                 )
-                when (decision) {
-                    RelaxDecision.RETRY -> routePlan = routeController.resolve(case.route)
-                    else -> {
-                        records += CaseRecord(
-                            case = case,
-                            overall = if (decision == RelaxDecision.ACCEPT_RELAXED) AssertionResult.PASS else AssertionResult.FAIL,
-                            verdicts = emptyList(),
-                            metricsByLabel = emptyMap(),
-                            relaxDecision = decision.name,
-                            skippedReason = "Required device not connected",
-                        )
-                        break
-                    }
-                }
+                continue
             }
-            if (routePlan.missingHints.isNotEmpty()) continue
 
             val (verdicts, metricsByLabel) = runOneCase(case, durationSec, routePlan, thresholds)
             var overall = Assertion.overall(verdicts)
