@@ -58,6 +58,9 @@ jobs:
           ffmpeg -version | head -1
           ls -la
 
+      - name: Generate audio test assets
+        run: bash scripts/gen_assets.sh app/src/main/assets/audio
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace --info
 

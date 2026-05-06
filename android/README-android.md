@@ -18,6 +18,7 @@ artifact를 다운로드해 `adb install -r app-debug.apk`.
 ```bash
 cd android
 gradle wrapper --gradle-version 8.9   # 최초 1회
+bash scripts/gen_assets.sh app/src/main/assets/audio   # 음원 자동 생성
 ./gradlew :app:assembleDebug
 ```
 
