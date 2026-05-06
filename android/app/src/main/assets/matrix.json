@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "description": "Audio verification matrix. Cases marked invalid=true are pruned before running.",
+  "streamTypes": [
+    "RINGTONE",
+    "DEEP_BUFFER",
+    "FAST_LL",
+    "ULL",
+    "OFFLOAD",
+    "FAST_OTHERS"
+  ],
+  "formats": ["WAV", "MP3", "AAC", "MP4"],
+  "routes": ["SPEAKER", "BT", "USB", "SPEAKER_PLUS_BT", "SPEAKER_PLUS_USB"],
+  "modes": ["AUTO", "MANUAL"],
+  "invalidCombinations": [
+    {
+      "match": {"streamType": "OFFLOAD", "format": "WAV"},
+      "reason": "Offload only supports compressed bitstreams (MP3/AAC/MP4)."
+    }
+  ],
+  "assets": {
+    "WAV": "audio/sine_1k_48k_16b_5s.wav",
+    "MP3": "audio/sine_1k_48k_16b_5s.mp3",
+    "AAC": "audio/sine_1k_48k_16b_5s.m4a",
+    "MP4": "audio/sine_1k_48k_16b_5s.mp4"
+  },
+  "playbackDurationSec": 5
+}

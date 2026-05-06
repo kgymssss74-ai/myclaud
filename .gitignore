@@ -3,3 +3,18 @@ __pycache__/
 youtube_collector.log
 run_output.txt
 .env
+
+# Android build outputs
+android/**/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+android/captures/
+android/.cxx/
+*.iml
+
+# Generated audio assets (built by android/scripts/gen_assets.sh)
+android/app/src/main/assets/audio/*.wav
+android/app/src/main/assets/audio/*.mp3
+android/app/src/main/assets/audio/*.m4a
+android/app/src/main/assets/audio/*.mp4

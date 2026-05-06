@@ -1,0 +1,98 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+android {
+    namespace = "com.myclaud.audioverify"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.myclaud.audioverify"
+        minSdk = 31
+        targetSdk = 34
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+
+    sourceSets {
+        named("main") {
+            java.srcDirs("src/main/kotlin")
+            assets.srcDirs("src/main/assets")
+        }
+    }
+
+    buildTypes {
+        debug {
+            isMinifyEnabled = false
+        }
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    packaging {
+        resources {
+            excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
+        }
+    }
+}
+
+dependencies {
+    implementation(project(":core-audio"))
+    implementation(project(":core-runner"))
+    implementation(project(":native-aaudio"))
+
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
+    implementation(composeBom)
+
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+    implementation("androidx.navigation:navigation-compose:2.8.1")
+
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+
+    debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+// Generates test audio assets (1 kHz sine in WAV/MP3/AAC/MP4) before the build.
+val genAudioAssets by tasks.registering(Exec::class) {
+    val script = rootProject.file("scripts/gen_assets.sh")
+    val outDir = file("src/main/assets/audio")
+    inputs.file(script)
+    outputs.dir(outDir)
+    workingDir = rootProject.projectDir
+    commandLine("bash", script.absolutePath, outDir.absolutePath)
+    doFirst { outDir.mkdirs() }
+}
+
+androidComponents {
+    onVariants { variant ->
+        tasks.named("pre${variant.name.replaceFirstChar { it.titlecase() }}Build") {
+            dependsOn(genAudioAssets)
+        }
+    }
+}

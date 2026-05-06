@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "description": "Per-stream-type underrun/xRun thresholds for a 5-second playback window. Adjustments require human approval (see plan).",
+  "underrunMaxOver5s": {
+    "RINGTONE": 2,
+    "DEEP_BUFFER": 3,
+    "FAST_LL": 1,
+    "ULL": 0,
+    "OFFLOAD": 0,
+    "FAST_OTHERS": 1
+  },
+  "ullLatencyBudgetMs": {
+    "S25_ENFORCE": 20,
+    "TAB_S10_INFO_ONLY": 20
+  },
+  "samplingHz": 1
+}
