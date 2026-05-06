@@ -89,10 +89,6 @@ val genAudioAssets by tasks.registering(Exec::class) {
     doFirst { outDir.mkdirs() }
 }
 
-androidComponents {
-    onVariants { variant ->
-        tasks.named("pre${variant.name.replaceFirstChar { it.titlecase() }}Build") {
-            dependsOn(genAudioAssets)
-        }
-    }
+tasks.named("preBuild") {
+    dependsOn(genAudioAssets)
 }

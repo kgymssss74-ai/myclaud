@@ -33,7 +33,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;26.3.11579264 cmake;3.22.1'
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+            ndk;26.3.11579264
+            cmake;3.22.1
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -43,8 +48,18 @@ jobs:
       - name: Generate Gradle wrapper
         run: gradle wrapper --gradle-version 8.9 --distribution-type bin
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Show toolchain versions
+        run: |
+          java -version
+          gradle --version
+          ffmpeg -version | head -1
+          ls -la
+
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace --info
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
