@@ -11,6 +11,7 @@ object JsonReportWriter {
             put("soc", report.socModel)
             put("androidRelease", report.androidRelease)
             put("timestampMs", report.timestampMs)
+            put("prunedByOffloadCaps", report.prunedByOffloadCaps)
             val arr = JSONArray()
             for (r in report.records) {
                 arr.put(JSONObject().apply {

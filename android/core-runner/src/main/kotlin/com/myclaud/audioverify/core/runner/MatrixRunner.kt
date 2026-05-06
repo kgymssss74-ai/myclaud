@@ -5,6 +5,8 @@ import android.os.Build
 import com.myclaud.audioverify.core.engine.AAudioEngine
 import com.myclaud.audioverify.core.engine.AudioFormat
 import com.myclaud.audioverify.core.engine.AudioTrackEngine
+import com.myclaud.audioverify.core.engine.OffloadCapabilityProbe
+import com.myclaud.audioverify.core.engine.OffloadCaps
 import com.myclaud.audioverify.core.engine.OffloadEngine
 import com.myclaud.audioverify.core.engine.PlaybackConfig
 import com.myclaud.audioverify.core.engine.PlaybackEngine
@@ -16,7 +18,7 @@ import com.myclaud.audioverify.core.engine.decode.WavReader
 import com.myclaud.audioverify.core.report.CaseRecord
 import com.myclaud.audioverify.core.report.ReportModel
 import com.myclaud.audioverify.core.routing.AudioRouteController
-import com.myclaud.audioverify.core.routing.Route
+import com.myclaud.audioverify.core.routing.RoutePlan
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,26 @@ data class RunnerProgress(
     val completed: Int,
     val currentCaseId: String?,
 )
+
+private fun freqHz(streamType: StreamType): Int = when (streamType) {
+    StreamType.RINGTONE -> 440
+    StreamType.DEEP_BUFFER -> 523
+    StreamType.FAST_LL -> 659
+    StreamType.ULL -> 784
+    StreamType.OFFLOAD -> 880
+    StreamType.FAST_OTHERS -> 988
+}
+
+internal fun assetPathFor(streamType: StreamType, format: AudioFormat): String {
+    val freq = freqHz(streamType)
+    val ext = when (format) {
+        AudioFormat.WAV -> "wav"
+        AudioFormat.MP3 -> "mp3"
+        AudioFormat.AAC -> "m4a"
+        AudioFormat.MP4 -> "mp4"
+    }
+    return "audio/sine_${freq}_48k_5s.$ext"
+}
 
 class MatrixRunner(
     private val context: Context,
@@ -41,9 +63,11 @@ class MatrixRunner(
         cases: List<TestCase>,
         thresholds: Thresholds,
         durationSec: Int,
+        pruneOffloadByDeviceCaps: Boolean = false,
     ): ReportModel {
         val records = mutableListOf<CaseRecord>()
         val auto = cases.filter { it.mode == Mode.AUTO }
+        val caps: OffloadCaps? = if (pruneOffloadByDeviceCaps) OffloadCapabilityProbe.probe(context) else null
         _progress.value = RunnerProgress(auto.size, 0, null)
 
         for ((i, case) in auto.withIndex()) {
@@ -61,12 +85,22 @@ class MatrixRunner(
                 continue
             }
 
+            if (caps != null && case.streamType == StreamType.OFFLOAD &&
+                caps.supported[case.format] != true
+            ) {
+                records += CaseRecord(
+                    case = case,
+                    overall = AssertionResult.PASS,
+                    verdicts = emptyList(),
+                    metricsByLabel = emptyMap(),
+                    relaxDecision = "AUTO_SKIPPED",
+                    skippedReason = "Device offload caps: ${case.format} not supported",
+                )
+                continue
+            }
+
             val routePlan = routeController.resolve(case.route)
             if (routePlan.missingHints.isNotEmpty()) {
-                // Per user spec: BT/USB-less automation. Missing devices are
-                // auto-skipped without prompt. Routing assertions for the
-                // missing legs simply don't run; the report records the reason
-                // so it's clear the case wasn't validated end-to-end.
                 records += CaseRecord(
                     case = case,
                     overall = AssertionResult.PASS,
@@ -78,7 +112,7 @@ class MatrixRunner(
                 continue
             }
 
-            val (verdicts, metricsByLabel) = runOneCase(case, durationSec, routePlan, thresholds)
+            val (verdicts, metricsByLabel) = runOneCase(case, durationSec, routePlan, thresholds, caps)
             var overall = Assertion.overall(verdicts)
             var relaxLabel: String? = null
 
@@ -89,7 +123,7 @@ class MatrixRunner(
                     RelaxDecision.ACCEPT_RELAXED -> AssertionResult.PASS
                     RelaxDecision.MARK_FAIL -> AssertionResult.FAIL
                     RelaxDecision.RETRY -> {
-                        val (v2, m2) = runOneCase(case, durationSec, routePlan, thresholds)
+                        val (v2, m2) = runOneCase(case, durationSec, routePlan, thresholds, caps)
                         records += CaseRecord(case, Assertion.overall(v2), v2, m2, "RETRY-${decision.name}", null)
                         continue
                     }
@@ -107,20 +141,20 @@ class MatrixRunner(
             androidRelease = Build.VERSION.RELEASE,
             timestampMs = System.currentTimeMillis(),
             records = records,
+            prunedByOffloadCaps = pruneOffloadByDeviceCaps,
         )
     }
 
     private suspend fun runOneCase(
         case: TestCase,
         durationSec: Int,
-        routePlan: com.myclaud.audioverify.core.routing.RoutePlan,
+        routePlan: RoutePlan,
         thresholds: Thresholds,
+        caps: OffloadCaps?,
     ): Pair<List<AssertionVerdict>, Map<String, PlaybackMetrics>> {
-        val assetFile = extractAssetToCache(assetPathFor(case.format))
-        val engines = mutableListOf<Pair<String, PlaybackEngine>>()
-
-        val primaryEngine = buildEngine(case, assetFile)
-        val primaryConfig = PlaybackConfig(
+        val assetFile = extractAssetToCache(assetPathFor(case.streamType, case.format))
+        val engine = buildEngine(case, assetFile, caps)
+        val config = PlaybackConfig(
             streamType = case.streamType,
             format = case.format,
             assetPath = assetFile.absolutePath,
@@ -129,66 +163,38 @@ class MatrixRunner(
         )
 
         try {
-            primaryEngine.open(primaryConfig)
+            engine.open(config)
         } catch (e: IllegalStateException) {
             return listOf(
                 AssertionVerdict("stream-opened", AssertionResult.FAIL, "true", "false: ${e.message}", relaxable = false)
             ) to emptyMap()
         }
-        engines += "primary" to primaryEngine
 
-        if (routePlan.secondary != null) {
-            val secondary = buildEngine(case, assetFile)
-            val cfg2 = primaryConfig.copy(preferredDevice = routePlan.secondary)
-            try {
-                secondary.open(cfg2)
-                engines += "secondary" to secondary
-            } catch (e: IllegalStateException) {
-                primaryEngine.stop()
-                return listOf(
-                    AssertionVerdict("secondary-stream-opened", AssertionResult.FAIL, "true", "false: ${e.message}", relaxable = false)
-                ) to emptyMap()
-            }
-        }
+        engine.start()
 
-        engines.forEach { it.second.start() }
-
-        val samples = mutableMapOf<String, MutableList<PlaybackMetrics>>()
         val sampleIntervalMs = (1000L / thresholds.samplingHz).coerceAtLeast(100)
         val totalSamples = (durationSec * thresholds.samplingHz).coerceAtLeast(1)
-        repeat(totalSamples) {
-            delay(sampleIntervalMs)
-            engines.forEach { (label, e) ->
-                samples.getOrPut(label) { mutableListOf() } += e.snapshot()
-            }
-        }
+        repeat(totalSamples) { delay(sampleIntervalMs) }
 
-        val finalMetrics = engines.associate { (label, e) -> label to e.snapshot() }
-        engines.forEach { runCatching { it.second.stop() } }
+        val finalMetrics = engine.snapshot()
+        runCatching { engine.stop() }
 
         val deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}"
-        val verdicts = mutableListOf<AssertionVerdict>()
-        finalMetrics.forEach { (label, m) ->
-            val requestedId = if (label == "primary") routePlan.primary?.id else routePlan.secondary?.id
-            val labeled = Assertion.evaluate(case, m, thresholds, requestedId, deviceModel)
-                .map { it.copy(name = "$label/${it.name}") }
-            verdicts += labeled
+        val verdicts = Assertion.evaluate(case, finalMetrics, thresholds, routePlan.primary?.id, deviceModel)
+        return verdicts to mapOf("primary" to finalMetrics)
+    }
+
+    private fun buildEngine(case: TestCase, assetFile: File, caps: OffloadCaps?): PlaybackEngine =
+        when (case.streamType) {
+            StreamType.OFFLOAD -> OffloadEngine(
+                context,
+                assetFile,
+                case.format,
+                caps ?: OffloadCapabilityProbe.probe(context),
+            )
+            StreamType.ULL -> AAudioEngine(decodeToPcm(case.format, assetFile))
+            else -> AudioTrackEngine(decodeToPcm(case.format, assetFile), case.streamType)
         }
-        return verdicts to finalMetrics
-    }
-
-    private fun assetPathFor(f: AudioFormat): String = when (f) {
-        AudioFormat.WAV -> "audio/sine_1k_48k_16b_5s.wav"
-        AudioFormat.MP3 -> "audio/sine_1k_48k_16b_5s.mp3"
-        AudioFormat.AAC -> "audio/sine_1k_48k_16b_5s.m4a"
-        AudioFormat.MP4 -> "audio/sine_1k_48k_16b_5s.mp4"
-    }
-
-    private fun buildEngine(case: TestCase, assetFile: File): PlaybackEngine = when (case.streamType) {
-        StreamType.OFFLOAD -> OffloadEngine(context, assetFile, case.format)
-        StreamType.ULL -> AAudioEngine(decodeToPcm(case.format, assetFile))
-        else -> AudioTrackEngine(decodeToPcm(case.format, assetFile), case.streamType)
-    }
 
     private fun decodeToPcm(format: AudioFormat, file: File): PcmData = when (format) {
         AudioFormat.WAV -> file.inputStream().use { WavReader.read(it) }

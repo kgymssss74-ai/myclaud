@@ -9,15 +9,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,7 @@ import com.myclaud.audioverify.core.report.Storage
 import com.myclaud.audioverify.core.routing.AudioRouteController
 import com.myclaud.audioverify.core.runner.MatrixDefinition
 import com.myclaud.audioverify.core.runner.MatrixRunner
+import com.myclaud.audioverify.core.runner.RelaxDecision
 import com.myclaud.audioverify.core.runner.RelaxationGate
 import kotlinx.coroutines.launch
 
@@ -42,28 +45,45 @@ fun MatrixScreen(modifier: Modifier = Modifier) {
     val pending by gate.pending.collectAsState()
     var summary by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
+    var pruneOffload by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = {
-                running = true
-                summary = null
-                scope.launch {
-                    val matrixJson = context.assets.open("matrix.json").bufferedReader().use { it.readText() }
-                    val thresholdsJson = context.assets.open("thresholds.json").bufferedReader().use { it.readText() }
-                    val (cases, thresholds) = MatrixDefinition.expand(matrixJson, thresholdsJson)
-                    val durationSec = org.json.JSONObject(matrixJson).optInt("playbackDurationSec", 5)
-                    val report = runner.run(cases, thresholds, durationSec)
-                    val dir = Storage.newRunDir(context, report.timestampMs)
-                    JsonReportWriter.write(report, dir)
-                    HtmlReportWriter.write(report, dir)
-                    summary = "Done — ${report.records.size} cases, report at ${dir.absolutePath}"
-                    running = false
+        Card {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = pruneOffload, onCheckedChange = { pruneOffload = it })
+                    Text("  OFFLOAD 디바이스 미지원 조합 자동 SKIP", style = MaterialTheme.typography.bodyMedium)
                 }
-            }, enabled = !running) { Text("Start matrix") }
+                Text(
+                    "기본 OFF — 켜면 디바이스가 advertise하지 않는 OFFLOAD×포맷 조합을 자동으로 SKIP. 끄면 종래대로 FAIL로 보고.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = {
+                    running = true
+                    summary = null
+                    scope.launch {
+                        val matrixJson = context.assets.open("matrix.json").bufferedReader().use { it.readText() }
+                        val thresholdsJson = context.assets.open("thresholds.json").bufferedReader().use { it.readText() }
+                        val (cases, thresholds) = MatrixDefinition.expand(matrixJson, thresholdsJson)
+                        val durationSec = org.json.JSONObject(matrixJson).optInt("playbackDurationSec", 5)
+                        val report = runner.run(cases, thresholds, durationSec, pruneOffload)
+                        val dir = Storage.newRunDir(context, report.timestampMs)
+                        JsonReportWriter.write(report, dir)
+                        HtmlReportWriter.write(report, dir)
+                        summary = "Done — ${report.records.size} cases (prune=${pruneOffload}) at ${dir.absolutePath}"
+                        running = false
+                    }
+                },
+                enabled = !running,
+            ) { Text("Start matrix") }
         }
         Text("Progress: ${progress.completed}/${progress.total} ${progress.currentCaseId.orEmpty()}")
         summary?.let { Text(it) }
@@ -71,16 +91,16 @@ fun MatrixScreen(modifier: Modifier = Modifier) {
         pending?.let { req ->
             Card {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Methodology decision required", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                    Text("Methodology decision required", style = MaterialTheme.typography.titleMedium)
                     Text("Case: ${req.caseId}")
                     if (req.missingHints.isNotEmpty()) Text("Missing: ${req.missingHints.joinToString()}")
                     req.verdicts.forEach { v ->
                         Text("- ${v.name}: ${v.result} (exp=${v.expected}, act=${v.actual})")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { gate.resolve(com.myclaud.audioverify.core.runner.RelaxDecision.ACCEPT_RELAXED) }) { Text("Accept relaxed") }
-                        Button(onClick = { gate.resolve(com.myclaud.audioverify.core.runner.RelaxDecision.MARK_FAIL) }) { Text("Mark FAIL") }
-                        Button(onClick = { gate.resolve(com.myclaud.audioverify.core.runner.RelaxDecision.RETRY) }) { Text("Retry") }
+                        Button(onClick = { gate.resolve(RelaxDecision.ACCEPT_RELAXED) }) { Text("Accept relaxed") }
+                        Button(onClick = { gate.resolve(RelaxDecision.MARK_FAIL) }) { Text("Mark FAIL") }
+                        Button(onClick = { gate.resolve(RelaxDecision.RETRY) }) { Text("Retry") }
                     }
                 }
             }

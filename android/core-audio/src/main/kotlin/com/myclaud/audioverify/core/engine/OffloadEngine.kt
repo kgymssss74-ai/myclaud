@@ -9,14 +9,15 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Offloaded compressed playback. Feeds raw MP3/AAC bitstream frames to AudioTrack
- * with the offload flag enabled. WAV cases must be filtered out before reaching
- * this engine (the matrix prunes them).
+ * Offloaded compressed playback. The configured sample rate comes from the
+ * pre-probed [OffloadCaps] for this device; if the format isn't advertised at
+ * any sample rate, [open] fails fast with a clear message.
  */
 class OffloadEngine(
     private val context: Context,
     private val encodedFile: File,
     private val format: AudioFormat,
+    private val caps: OffloadCaps,
 ) : PlaybackEngine {
 
     private var track: AudioTrack? = null
@@ -32,24 +33,33 @@ class OffloadEngine(
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
 
+        if (format == AudioFormat.WAV) {
+            openError = "OffloadEngine does not accept WAV (PCM)."
+            throw IllegalStateException(openError)
+        }
+
         val encoding = when (format) {
             AudioFormat.MP3 -> AndroidAudioFormat.ENCODING_MP3
             AudioFormat.AAC, AudioFormat.MP4 -> AndroidAudioFormat.ENCODING_AAC_LC
-            AudioFormat.WAV -> {
-                openError = "OffloadEngine does not accept WAV (PCM)."
+            else -> {
+                openError = "Unsupported format for offload: $format"
                 throw IllegalStateException(openError)
             }
         }
 
+        val sampleRate = caps.perFormatSampleRate[format] ?: run {
+            openError = "Device offload caps: $format not advertised at any tested sample rate (44.1k / 48k)."
+            throw IllegalStateException(openError)
+        }
+
         val af = AndroidAudioFormat.Builder()
             .setEncoding(encoding)
-            .setSampleRate(48_000)
+            .setSampleRate(sampleRate)
             .setChannelMask(AndroidAudioFormat.CHANNEL_OUT_STEREO)
             .build()
 
-        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (!AudioManager.isOffloadedPlaybackSupported(af, attrs)) {
-            openError = "Offload not supported for ${format.name} on this device."
+            openError = "Offload not supported for $format on this device (re-check at runtime)."
             throw IllegalStateException(openError)
         }
 
@@ -122,7 +132,7 @@ class OffloadEngine(
             underrunCount = t?.underrunCount ?: 0,
             xRunCount = 0,
             framesPerBurst = null,
-            sampleRate = 48_000,
+            sampleRate = caps.perFormatSampleRate[format],
             errorMessage = openError,
         )
     }

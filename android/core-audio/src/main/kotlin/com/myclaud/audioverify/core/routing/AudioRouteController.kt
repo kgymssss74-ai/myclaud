@@ -7,23 +7,30 @@ import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 
-enum class Route { SPEAKER, BT, USB, SPEAKER_PLUS_BT, SPEAKER_PLUS_USB }
+enum class Route { SPEAKER, BT, USB }
 
 data class RoutePlan(
     val primary: AudioDeviceInfo?,
-    val secondary: AudioDeviceInfo?,
     val missingHints: List<String>,
 )
 
-/**
- * Resolves a [Route] enum into concrete [AudioDeviceInfo] handles to pin per
- * track. When a required device isn't connected, the resolution returns
- * [missingHints] so the runner can prompt the operator (without auto-relaxing).
- */
 class AudioRouteController(context: Context) {
 
     private val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val enumerator = DeviceEnumerator(context)
+
+    fun listOutputs(): List<ClassifiedDevice> = enumerator.listOutputs()
+
+    fun connectedRoutes(): Set<Route> {
+        val kinds = enumerator.listOutputs().map { it.kind }.toSet()
+        val routes = mutableSetOf<Route>()
+        if (kinds.contains(RouteKind.SPEAKER)) routes += Route.SPEAKER
+        if (kinds.contains(RouteKind.BT_A2DP)) routes += Route.BT
+        if (kinds.contains(RouteKind.USB_HEADSET) || kinds.contains(RouteKind.USB_DEVICE)) {
+            routes += Route.USB
+        }
+        return routes
+    }
 
     fun resolve(route: Route): RoutePlan {
         val devices = enumerator.listOutputs()
@@ -31,27 +38,13 @@ class AudioRouteController(context: Context) {
         val bt = devices.firstOrNull { it.kind == RouteKind.BT_A2DP }?.info
         val usb = devices.firstOrNull { it.kind == RouteKind.USB_HEADSET || it.kind == RouteKind.USB_DEVICE }?.info
 
-        val missing = mutableListOf<String>()
         return when (route) {
-            Route.SPEAKER -> RoutePlan(speaker, null, if (speaker == null) listOf("Built-in speaker not found").also { missing += it } else emptyList())
-            Route.BT -> {
-                if (bt == null) missing += "BT A2DP device not connected — pair a Bluetooth headset"
-                RoutePlan(bt, null, missing)
-            }
-            Route.USB -> {
-                if (usb == null) missing += "USB headset not connected — plug a USB-C audio device"
-                RoutePlan(usb, null, missing)
-            }
-            Route.SPEAKER_PLUS_BT -> {
-                if (speaker == null) missing += "Built-in speaker not found"
-                if (bt == null) missing += "BT A2DP device not connected"
-                RoutePlan(speaker, bt, missing)
-            }
-            Route.SPEAKER_PLUS_USB -> {
-                if (speaker == null) missing += "Built-in speaker not found"
-                if (usb == null) missing += "USB headset not connected"
-                RoutePlan(speaker, usb, missing)
-            }
+            Route.SPEAKER -> if (speaker != null) RoutePlan(speaker, emptyList())
+            else RoutePlan(null, listOf("Built-in speaker not found"))
+            Route.BT -> if (bt != null) RoutePlan(bt, emptyList())
+            else RoutePlan(null, listOf("BT A2DP device not connected"))
+            Route.USB -> if (usb != null) RoutePlan(usb, emptyList())
+            else RoutePlan(null, listOf("USB headset not connected"))
         }
     }
 

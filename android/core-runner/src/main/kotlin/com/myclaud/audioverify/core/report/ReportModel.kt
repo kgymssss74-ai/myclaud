@@ -20,4 +20,5 @@ data class ReportModel(
     val androidRelease: String,
     val timestampMs: Long,
     val records: List<CaseRecord>,
+    val prunedByOffloadCaps: Boolean = false,
 )
