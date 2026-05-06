@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import com.myclaud.audioverify.core.util.AppLogger
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -28,6 +29,7 @@ class OffloadEngine(
     private var lastRoutedDeviceType: Int? = null
 
     override fun open(config: PlaybackConfig) {
+        AppLogger.i("OffloadEngine", "open format=$format file=${encodedFile.name} size=${encodedFile.length()}")
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)

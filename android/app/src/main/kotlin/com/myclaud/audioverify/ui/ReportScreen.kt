@@ -47,6 +47,7 @@ fun ReportScreen(modifier: Modifier = Modifier) {
                 devices = listOutputDevices(context)
             },
         )
+        LogPanel()
         if (runs.value.isEmpty()) {
             Text("No reports yet. Run the matrix to generate one.")
             return@Column

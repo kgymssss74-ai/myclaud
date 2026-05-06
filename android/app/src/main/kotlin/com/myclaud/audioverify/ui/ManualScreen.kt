@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,7 +47,11 @@ import com.myclaud.audioverify.core.engine.decode.PcmDecoder
 import com.myclaud.audioverify.core.engine.decode.WavReader
 import com.myclaud.audioverify.core.routing.AudioRouteController
 import com.myclaud.audioverify.core.routing.Route
+import com.myclaud.audioverify.core.util.AppLogger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -59,9 +64,12 @@ private data class EngineSlot(
     val engine: PlaybackEngine,
 )
 
+private const val TAG = "ManualScreen"
+
 @Composable
 fun ManualScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val routeController = remember { AudioRouteController(context) }
     val caps: OffloadCaps = remember { OffloadCapabilityProbe.probe(context) }
 
@@ -71,6 +79,7 @@ fun ManualScreen(modifier: Modifier = Modifier) {
     var source by remember { mutableStateOf(Source.TONE) }
     var pickedFile by remember { mutableStateOf<File?>(null) }
     var pickedFileLabel by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
 
     var slots by remember { mutableStateOf<List<EngineSlot>>(emptyList()) }
     val slotMetrics = remember { mutableStateMapOf<String, PlaybackMetrics>() }
@@ -80,23 +89,33 @@ fun ManualScreen(modifier: Modifier = Modifier) {
 
     val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        try {
-            val (file, label, detected) = importPickedFile(context, uri)
-            pickedFile = file
-            pickedFileLabel = label
-            format = detected
-            source = Source.FILE
-            status = "Loaded $label (detected $detected)"
-            stopAndClear(slots, slotMetrics)
-            slots = emptyList()
-        } catch (e: Exception) {
-            status = "Pick failed: ${e.message}"
+        AppLogger.i(TAG, "OpenDocument returned uri=$uri")
+        working = true
+        status = "Importing picked file..."
+        scope.launch {
+            try {
+                val imported = withContext(Dispatchers.IO) { importPickedFile(context, uri) }
+                stopAndClear(slots, slotMetrics)
+                slots = emptyList()
+                pickedFile = imported.file
+                pickedFileLabel = imported.label
+                format = imported.format
+                source = Source.FILE
+                status = "Loaded ${imported.label} (detected ${imported.format})"
+                AppLogger.i(TAG, "import OK label=${imported.label} format=${imported.format} bytes=${imported.file.length()}")
+            } catch (t: Throwable) {
+                AppLogger.e(TAG, "import failed", t)
+                status = "Pick failed: ${t.javaClass.simpleName}: ${t.message}"
+            } finally {
+                working = false
+            }
         }
     }
 
     DisposableEffect(routeController) {
         val cb = routeController.registerHotplug {
             connectedRoutes = routeController.connectedRoutes()
+            AppLogger.i(TAG, "hotplug connected=$connectedRoutes")
         }
         onDispose { routeController.unregisterHotplug(cb) }
     }
@@ -158,7 +177,10 @@ fun ManualScreen(modifier: Modifier = Modifier) {
         }
         if (source == Source.FILE) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { pickLauncher.launch(arrayOf("audio/*", "video/mp4")) }) {
+                Button(
+                    onClick = { pickLauncher.launch(arrayOf("audio/*", "video/mp4")) },
+                    enabled = !working,
+                ) {
                     Text(if (pickedFile == null) "Pick file" else "Pick another")
                 }
                 pickedFileLabel?.let { Text("Loaded: $it") }
@@ -199,53 +221,97 @@ fun ManualScreen(modifier: Modifier = Modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
                 onClick = {
-                    runCatching {
-                        if (selectedStreams.isEmpty() || selectedRoutes.isEmpty()) {
-                            status = "Pick at least one stream type and one route."
-                            return@runCatching
-                        }
-                        stopAndClear(slots, slotMetrics)
-                        slotMetrics.clear()
+                    if (selectedStreams.isEmpty() || selectedRoutes.isEmpty()) {
+                        status = "Pick at least one stream type and one route."
+                        return@Button
+                    }
+                    stopAndClear(slots, slotMetrics)
+                    slots = emptyList()
+                    slotMetrics.clear()
+                    working = true
+                    status = "Preparing..."
+                    val streamsSnapshot = selectedStreams.toList()
+                    val routesSnapshot = selectedRoutes.toList()
+                    val sourceSnapshot = source
+                    val formatSnapshot = format
+                    val pickedSnapshot = pickedFile
+                    AppLogger.i(
+                        TAG,
+                        "Play start streams=$streamsSnapshot routes=$routesSnapshot src=$sourceSnapshot fmt=$formatSnapshot",
+                    )
+                    scope.launch {
                         val newSlots = mutableListOf<EngineSlot>()
-                        for (st in selectedStreams) for (r in selectedRoutes) {
-                            val plan = routeController.resolve(r)
-                            if (plan.missingHints.isNotEmpty()) {
-                                status = "Skip ${st.name}/${r.name}: ${plan.missingHints.joinToString()}"
-                                continue
+                        try {
+                            for (st in streamsSnapshot) {
+                                val srcFile = withContext(Dispatchers.IO) {
+                                    sourceFileFor(context, sourceSnapshot, st, formatSnapshot, pickedSnapshot)
+                                }
+                                val sharedPcm: PcmData? = if (st != StreamType.OFFLOAD) {
+                                    AppLogger.i(TAG, "decoding for stream=$st file=${srcFile.name}")
+                                    withContext(Dispatchers.IO) { decode(formatSnapshot, srcFile) }
+                                } else null
+
+                                for (r in routesSnapshot) {
+                                    val plan = routeController.resolve(r)
+                                    if (plan.missingHints.isNotEmpty()) {
+                                        val msg = "Skip ${shortLabelStream(st)}/${shortLabelRoute(r)}: ${plan.missingHints.joinToString()}"
+                                        AppLogger.w(TAG, msg)
+                                        status = msg
+                                        continue
+                                    }
+                                    val engine: PlaybackEngine = try {
+                                        when (st) {
+                                            StreamType.OFFLOAD -> OffloadEngine(context, srcFile, formatSnapshot, caps)
+                                            StreamType.ULL -> AAudioEngine(sharedPcm!!)
+                                            else -> AudioTrackEngine(sharedPcm!!, st)
+                                        }
+                                    } catch (t: Throwable) {
+                                        AppLogger.e(TAG, "engine ctor failed for $st/$r", t)
+                                        status = "${shortLabelStream(st)}/${shortLabelRoute(r)} ctor: ${t.message}"
+                                        continue
+                                    }
+                                    try {
+                                        engine.open(
+                                            PlaybackConfig(
+                                                streamType = st,
+                                                format = formatSnapshot,
+                                                assetPath = srcFile.absolutePath,
+                                                preferredDevice = plan.primary,
+                                                durationSec = 999,
+                                            )
+                                        )
+                                        engine.start()
+                                        newSlots += EngineSlot(
+                                            "${shortLabelStream(st)}@${shortLabelRoute(r)}",
+                                            st, r, engine,
+                                        )
+                                        AppLogger.i(TAG, "started $st@$r")
+                                    } catch (t: Throwable) {
+                                        AppLogger.e(TAG, "open/start failed for $st/$r", t)
+                                        status = "${shortLabelStream(st)}/${shortLabelRoute(r)} open: ${t.message}"
+                                        runCatching { engine.stop() }
+                                    }
+                                }
                             }
-                            val file = sourceFileFor(context, source, st, format, pickedFile)
-                            val engine: PlaybackEngine = when (st) {
-                                StreamType.OFFLOAD -> OffloadEngine(context, file, format, caps)
-                                StreamType.ULL -> AAudioEngine(decode(format, file))
-                                else -> AudioTrackEngine(decode(format, file), st)
-                            }
-                            try {
-                                engine.open(
-                                    PlaybackConfig(
-                                        streamType = st,
-                                        format = format,
-                                        assetPath = file.absolutePath,
-                                        preferredDevice = plan.primary,
-                                        durationSec = 999,
-                                    )
-                                )
-                                engine.start()
-                                newSlots += EngineSlot("${shortLabelStream(st)}@${shortLabelRoute(r)}", st, r, engine)
-                            } catch (e: Exception) {
-                                status = "${st.name}/${r.name} open failed: ${e.message}"
-                            }
+                            slots = newSlots
+                            status = if (newSlots.isEmpty()) "No engine started — see log"
+                            else "Playing ${newSlots.size} engine(s)"
+                        } catch (t: Throwable) {
+                            AppLogger.e(TAG, "Play pipeline failed (outer)", t)
+                            status = "Play failed: ${t.javaClass.simpleName}: ${t.message}"
+                            newSlots.forEach { runCatching { it.engine.stop() } }
+                            slots = emptyList()
+                        } finally {
+                            working = false
                         }
-                        slots = newSlots
-                        if (newSlots.isNotEmpty()) status = "Playing ${newSlots.size} engine(s)"
-                    }.onFailure {
-                        status = "Open failed: ${it.message}"
                     }
                 },
-                enabled = slots.isEmpty() && selectedStreams.isNotEmpty() && selectedRoutes.isNotEmpty(),
-            ) { Text("Play") }
+                enabled = !working && slots.isEmpty() && selectedStreams.isNotEmpty() && selectedRoutes.isNotEmpty(),
+            ) { Text(if (working) "Working..." else "Play") }
 
             Button(
                 onClick = {
+                    AppLogger.i(TAG, "Stop pressed")
                     stopAndClear(slots, slotMetrics)
                     slots = emptyList()
                     status = "Stopped"
@@ -295,6 +361,8 @@ fun ManualScreen(modifier: Modifier = Modifier) {
                 }
             }
         }
+
+        LogPanel()
     }
 }
 
@@ -414,11 +482,18 @@ private fun importPickedFile(context: Context, uri: Uri): PickedFile {
     val display = queryDisplayName(context, uri) ?: "picked-${System.currentTimeMillis()}"
     val mime = context.contentResolver.getType(uri)
     val format = detectFormat(display, mime)
-    val outName = "user-${System.currentTimeMillis()}-$display"
+    AppLogger.i(TAG, "importPickedFile display=$display mime=$mime detected=$format")
+    val safeName = display.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    val outName = "user-${System.currentTimeMillis()}-$safeName"
     val out = File(context.cacheDir, "audio/$outName")
     out.parentFile?.mkdirs()
-    context.contentResolver.openInputStream(uri)!!.use { input ->
-        FileOutputStream(out).use { input.copyTo(it) }
+    val input = context.contentResolver.openInputStream(uri)
+        ?: throw IllegalStateException("ContentResolver.openInputStream returned null for $uri")
+    input.use {
+        FileOutputStream(out).use { dst -> it.copyTo(dst) }
+    }
+    if (out.length() == 0L) {
+        throw IllegalStateException("Imported file is empty: $outName (uri=$uri)")
     }
     return PickedFile(out, display, format)
 }

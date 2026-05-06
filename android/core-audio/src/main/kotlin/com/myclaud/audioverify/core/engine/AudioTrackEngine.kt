@@ -5,6 +5,7 @@ import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import com.myclaud.audioverify.core.engine.decode.PcmData
+import com.myclaud.audioverify.core.util.AppLogger
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -26,6 +27,10 @@ class AudioTrackEngine(
     private var lastRoutedDeviceType: Int? = null
 
     override fun open(config: PlaybackConfig) {
+        AppLogger.i(
+            "AudioTrackEngine",
+            "open stream=$streamType pcmBytes=${pcm.pcm.size} sr=${pcm.sampleRate} ch=${pcm.channels} bits=${pcm.bitsPerSample}",
+        )
         val attrs = buildAttributes(streamType)
         val encoding = AndroidAudioFormat.ENCODING_PCM_16BIT
         val channelMask = if (pcm.channels >= 2) AndroidAudioFormat.CHANNEL_OUT_STEREO
