@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "description": "Audio verification matrix. Cases marked invalid via invalidCombinations are pruned before running. SPEAKER_PLUS_* routes were removed in v1.1 — multi-route playback is exposed in Manual mode via multi-select chips.",
+  "streamTypes": [
+    "RINGTONE",
+    "DEEP_BUFFER",
+    "FAST_LL",
+    "ULL",
+    "OFFLOAD",
+    "FAST_OTHERS"
+  ],
+  "formats": ["WAV", "MP3", "AAC", "MP4"],
+  "routes": ["SPEAKER", "BT", "USB"],
+  "modes": ["AUTO", "MANUAL"],
+  "invalidCombinations": [
+    {
+      "match": {"streamType": "OFFLOAD", "format": "WAV"},
+      "reason": "Offload only supports compressed bitstreams (MP3/AAC/MP4)."
+    },
+    {
+      "match": {"streamType": "RINGTONE", "route": "BT"},
+      "reason": "Android does not route USAGE_NOTIFICATION_RINGTONE to BT A2DP."
+    }
+  ],
+  "playbackDurationSec": 5
+}
