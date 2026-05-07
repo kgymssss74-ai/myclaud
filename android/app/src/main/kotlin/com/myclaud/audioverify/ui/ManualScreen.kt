@@ -71,7 +71,17 @@ fun ManualScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val routeController = remember { AudioRouteController(context) }
-    val caps: OffloadCaps = remember { OffloadCapabilityProbe.probe(context) }
+    var caps: OffloadCaps by remember {
+        mutableStateOf(OffloadCaps(emptyMap(), emptyMap(), 0L))
+    }
+
+    LaunchedEffect(Unit) {
+        // Probe off the main thread — isOffloadedPlaybackSupported is an
+        // audioserver IPC and was previously a documented ANR vector when
+        // run synchronously inside the first composition.
+        caps = withContext(Dispatchers.IO) { OffloadCapabilityProbe.probe(context) }
+        AppLogger.i(TAG, "OFFLOAD probe done: $caps")
+    }
 
     var selectedStreams by remember { mutableStateOf(setOf(StreamType.FAST_LL)) }
     var selectedRoutes by remember { mutableStateOf(setOf(Route.SPEAKER)) }
@@ -362,7 +372,10 @@ fun ManualScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        LogPanel()
+        Text(
+            "로그는 Reports 탭 하단에서 확인 (이 화면에 두면 스크롤 충돌로 ANR 가능).",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

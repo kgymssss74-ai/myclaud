@@ -17,9 +17,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,22 +31,33 @@ import com.myclaud.audioverify.core.engine.AudioFormat
 import com.myclaud.audioverify.core.engine.OffloadCapabilityProbe
 import com.myclaud.audioverify.core.engine.OffloadCaps
 import com.myclaud.audioverify.core.report.Storage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
 fun ReportScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val runs = remember { mutableStateOf(Storage.listRuns(context)) }
-    var caps by remember { mutableStateOf(OffloadCapabilityProbe.probe(context)) }
-    var devices by remember { mutableStateOf(listOutputDevices(context)) }
+    var caps by remember { mutableStateOf(OffloadCaps(emptyMap(), emptyMap(), 0L)) }
+    var devices by remember { mutableStateOf<List<DeviceLine>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        caps = withContext(Dispatchers.IO) { OffloadCapabilityProbe.probe(context) }
+        devices = withContext(Dispatchers.IO) { listOutputDevices(context) }
+    }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         CapabilitiesCard(
             caps = caps,
             devices = devices,
             onReprobe = {
-                caps = OffloadCapabilityProbe.probe(context)
-                devices = listOutputDevices(context)
+                scope.launch {
+                    caps = withContext(Dispatchers.IO) { OffloadCapabilityProbe.probe(context) }
+                    devices = withContext(Dispatchers.IO) { listOutputDevices(context) }
+                }
             },
         )
         LogPanel()
