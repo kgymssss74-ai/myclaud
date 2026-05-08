@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1116" />
+  <title>S25 스피커 자동 튜닝</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Galaxy S25 스피커 자동 튜닝</h1>
+    <p class="sub">사인 스윕 ▸ 마이크 비교 ▸ EQ + MBDRC 자동 설계 (300 Hz – 7 kHz)</p>
+  </header>
+
+  <section class="howto">
+    <h2>측정 전 준비</h2>
+    <ol>
+      <li>폰 시스템 음량을 <b>최대</b>로 올립니다.</li>
+      <li>매너모드를 끄고, 미디어 출력이 내장 스테레오 스피커인지 확인합니다.</li>
+      <li>조용한 환경 (가급적 30 cm 이내에 반사면 없는 곳)에서 폰을 평평히 둡니다.</li>
+      <li><b>시작</b> 버튼을 누르면 사인 스윕이 좌·우 스피커에서 순차로 재생됩니다 (-30 → -6 dBrms).</li>
+    </ol>
+  </section>
+
+  <section class="controls">
+    <button id="startBtn">시작</button>
+    <button id="exportBtn" disabled>JSON 내보내기</button>
+    <div id="status" class="status">대기</div>
+    <div class="bar"><div id="progress"></div></div>
+  </section>
+
+  <section>
+    <h2>실행 로그</h2>
+    <pre id="log"></pre>
+  </section>
+
+  <section>
+    <h2>채널별 보정 결과</h2>
+    <div id="results"></div>
+  </section>
+
+  <footer>
+    <small>
+      목표: 평탄도 : 음량 : THD = 3 : 5 : 2 (가중) — 최적 마이크를 자동 선택해
+      재생단 EQ + MBDRC 를 그 마이크 기준으로 산출합니다.
+    </small>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
