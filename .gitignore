@@ -3,3 +3,12 @@ __pycache__/
 youtube_collector.log
 run_output.txt
 .env
+
+# weekly-report-system
+weekly-report-system/*.db
+weekly-report-system/uploads/
+weekly-report-system/backup/*.zip
+
+# release artifacts
+*.zip
+

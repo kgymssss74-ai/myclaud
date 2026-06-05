@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}주간 입력{% endblock %}
+{% block content %}
+<h1>주간보고 입력</h1>
+
+{% if saved %}
+<div class="success-box" style="margin-bottom:.8rem">저장 완료되었습니다.</div>
+{% endif %}
+
+<div class="card" x-data="weeklyApp()" x-init="init()" x-cloak>
+
+  <!-- Selector row -->
+  <div class="grid3" style="margin-bottom:.8rem">
+    <div>
+      <label>파트원 *</label>
+      <select x-model="memberId" @change="loadProjects()" required>
+        <option value="">-- 선택 --</option>
+        {% for m in members %}
+        <option value="{{ m.member_id }}"
+          {% if sel_member == m.member_id %}selected{% endif %}>
+          {{ m.display_name or m.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>과제 *</label>
+      <select x-model="projectId" @change="loadMilestones()" required>
+        <option value="">-- 과제 선택 --</option>
+        <template x-for="p in projects" :key="p.project_id">
+          <option :value="p.project_id" x-text="p.name + ' [' + p.track + ']'"></option>
+        </template>
+      </select>
+    </div>
+    <div>
+      <label>주차 *</label>
+      <input type="text" x-model="week" @change="loadPrevItems()"
+             placeholder="2026-W23">
+    </div>
+  </div>
+
+  <!-- Error display -->
+  <div x-show="Object.keys(errors).length > 0" class="error-box" style="margin-bottom:.6rem">
+    <template x-for="(msg, key) in errors" :key="key">
+      <div x-text="msg"></div>
+    </template>
+  </div>
+
+  <!-- Split view -->
+  <form id="weekly-form" method="post" action="/weekly" enctype="multipart/form-data"
+        @submit.prevent="submitForm()">
+
+    <input type="hidden" name="member_id" :value="memberId">
+    <input type="hidden" name="project_id" :value="projectId">
+    <input type="hidden" name="week" :value="week">
+
+    <template x-for="item in items" :key="item.item_key">
+      <div class="card" style="margin-top:.6rem;background:#fafafa">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+          <strong x-text="item.item_key"></strong>
+          <span>
+            <span x-show="item.is_new" class="badge-new">신규</span>
+            <span x-show="item.ms_status === 'risk'" class="badge-risk">위험</span>
+            <span x-show="item.ms_status === 'done'" class="badge-done">완료</span>
+          </span>
+          <div>
+            <label style="display:inline;margin:0 .3rem">상태</label>
+            <select :name="'status_' + item.item_key" x-model="item.status" style="width:auto">
+              <option value="完">完</option>
+              <option value="進">進</option>
+              <option value="이슈">이슈</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <!-- Left: previous week (read-only) -->
+          <div class="split-left">
+            <div style="font-size:.8rem;color:#888;margin-bottom:.3rem">전주</div>
+
+            <label>진행</label>
+            <div class="readonly" style="padding:.3rem;min-height:44px;border:1px solid #eee;border-radius:4px;font-size:.85rem"
+                 x-text="item.prev_progress || '—'"></div>
+
+            <label>일정</label>
+            <div class="readonly" style="padding:.3rem;min-height:44px;border:1px solid #eee;border-radius:4px;font-size:.85rem"
+                 x-text="item.prev_schedule || '—'"></div>
+
+            <label>Risk</label>
+            <div class="readonly" style="padding:.3rem;min-height:44px;border:1px solid #eee;border-radius:4px;font-size:.85rem"
+                 x-text="item.prev_risk || '—'"></div>
+          </div>
+
+          <!-- Right: this week input -->
+          <div>
+            <div style="font-size:.8rem;color:#888;margin-bottom:.3rem">금주</div>
+
+            <label>진행 *</label>
+            <textarea :name="'progress_text_' + item.item_key"
+                      x-model="item.progress_text"
+                      @input.debounce.500ms="previewDiff(item, 'progress')"
+                      placeholder="이번 주 진행 내용" required></textarea>
+            <div x-show="item.progress_preview" class="readonly"
+                 style="font-size:.8rem;padding:.2rem;margin-top:2px;border-radius:3px"
+                 x-html="item.progress_preview"></div>
+
+            <label>일정 *</label>
+            <textarea :name="'schedule_text_' + item.item_key"
+                      x-model="item.schedule_text"
+                      @input.debounce.500ms="previewDiff(item, 'schedule')"
+                      placeholder="일정 현황" required></textarea>
+            <div x-show="item.schedule_preview" class="readonly"
+                 style="font-size:.8rem;padding:.2rem;margin-top:2px;border-radius:3px"
+                 x-html="item.schedule_preview"></div>
+
+            <label>Risk *</label>
+            <textarea :name="'risk_text_' + item.item_key"
+                      x-model="item.risk_text"
+                      @input.debounce.500ms="previewDiff(item, 'risk')"
+                      placeholder="리스크 사항" required></textarea>
+            <div x-show="item.risk_preview" class="readonly"
+                 style="font-size:.8rem;padding:.2rem;margin-top:2px;border-radius:3px"
+                 x-html="item.risk_preview"></div>
+
+            <div x-show="item.needs_delay_reason">
+              <label>지연사유 *</label>
+              <input type="text" :name="'delay_reason_' + item.item_key"
+                     x-model="item.delay_reason"
+                     placeholder="지연 사유를 입력하세요">
+            </div>
+
+            <input type="hidden" :name="'ms_id_' + item.item_key" :value="item.ms_id || ''">
+
+            <label style="margin-top:.4rem">이미지 첨부</label>
+            <input type="file" :name="'images_' + item.item_key"
+                   multiple accept="image/*">
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <div style="margin-top:1rem" x-show="items.length > 0">
+      <button type="submit" class="btn btn-primary">저장</button>
+    </div>
+  </form>
+
+  <div x-show="memberId && projectId && items.length === 0" style="color:#888;margin-top:.8rem">
+    해당 과제에 마일스톤이 없습니다. 과제를 확인하세요.
+  </div>
+</div>
+
+<script>
+function weeklyApp() {
+  return {
+    memberId:  '{{ sel_member }}',
+    projectId: '{{ sel_project }}',
+    week:      '{{ current_week }}',
+    projects:  [],
+    items:     [],
+    prevItems: {},
+    errors:    {},
+
+    init() {
+      if (this.memberId) this.loadProjects();
+    },
+
+    async loadProjects() {
+      if (!this.memberId) return;
+      const r = await fetch(`/api/projects?member_id=${this.memberId}`);
+      this.projects = await r.json();
+      this.items = [];
+    },
+
+    async loadMilestones() {
+      if (!this.projectId) return;
+      await this.loadPrevItems();
+      const r = await fetch(`/api/milestones?project_id=${this.projectId}`);
+      const milestones = await r.json();
+
+      if (milestones.length === 0) {
+        this.items = [{
+          item_key: 'general', ms_id: null, ms_status: '',
+          is_new: !this.prevItems['general'],
+          needs_delay_reason: false,
+          progress_text: '', schedule_text: '', risk_text: '', delay_reason: '',
+          status: '進',
+          prev_progress: this.prevItems['general']?.progress_text || '',
+          prev_schedule: this.prevItems['general']?.schedule_text || '',
+          prev_risk:     this.prevItems['general']?.risk_text || '',
+          progress_preview: '', schedule_preview: '', risk_preview: '',
+        }];
+      } else {
+        this.items = milestones.map(ms => ({
+          item_key: ms.type, ms_id: ms.ms_id, ms_status: ms.status,
+          is_new: !this.prevItems[ms.type],
+          needs_delay_reason: ms.status === 'risk',
+          progress_text: '', schedule_text: '', risk_text: '', delay_reason: '',
+          status: ms.status === 'done' ? '完' : '進',
+          prev_progress: this.prevItems[ms.type]?.progress_text || '',
+          prev_schedule: this.prevItems[ms.type]?.schedule_text || '',
+          prev_risk:     this.prevItems[ms.type]?.risk_text || '',
+          progress_preview: '', schedule_preview: '', risk_preview: '',
+        }));
+      }
+    },
+
+    async loadPrevItems() {
+      if (!this.memberId || !this.projectId || !this.week) return;
+      const prev = this.prevWeek(this.week);
+      const r = await fetch(
+        `/api/prev-report?member_id=${this.memberId}&project_id=${this.projectId}&week=${prev}`
+      );
+      const data = await r.json();
+      this.prevItems = {};
+      (data.items || []).forEach(i => { this.prevItems[i.item_key] = i; });
+    },
+
+    async previewDiff(item, field) {
+      const fieldMap = { progress: 'progress_text', schedule: 'schedule_text', risk: 'risk_text' };
+      const prevMap  = { progress: 'prev_progress', schedule: 'prev_schedule', risk: 'prev_risk' };
+      const previewK = `${field}_preview`;
+      const prev = item[prevMap[field]] || '';
+      const curr = item[fieldMap[field]] || '';
+      if (!curr) { item[previewK] = ''; return; }
+      const r = await fetch('/preview-diff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prev_text: prev, curr_text: curr }),
+      });
+      item[previewK] = await r.text();
+    },
+
+    prevWeek(week) {
+      const [y, w] = week.split('-W').map(Number);
+      return w > 1 ? `${y}-W${String(w-1).padStart(2,'0')}` : `${y-1}-W52`;
+    },
+
+    async submitForm() {
+      this.errors = {};
+      const form = document.getElementById('weekly-form');
+      const fd = new FormData(form);
+      const r = await fetch('/weekly', { method: 'POST', body: fd });
+      if (r.redirected) { window.location.href = r.url; return; }
+      if (r.status === 422) {
+        const data = await r.json();
+        this.errors = data.errors || { '_': data.error || '입력 오류' };
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

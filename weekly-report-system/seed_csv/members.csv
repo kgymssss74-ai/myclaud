@@ -1,0 +1,18 @@
+member_id,name,tg,tg_order,cl_level,mentor,is_part_leader
+M01,Kim Gangyeol,Audio Solution,0,Part Leader,,1
+M02,Son Baekgwon,Audio Solution,1,CL4,,0
+M03,Park Jaeha,Audio Solution,1,CL4,,0
+M04,Kim Gitae,Audio Solution,1,CL3,,0
+M05,Song Jihun,Audio Solution,1,CL3,,0
+M06,Kwon Minseok,Audio Solution,1,CL2,,0
+M07,Kim Jinyong,Audio Solution,1,CL2,Kwon Minseok,0
+M08,Ok Dongmun,Audio SW,2,CL4,,0
+M09,Park Junseok,Audio SW,2,CL3,,0
+M10,Park Sangsu,Audio SW,2,CL3,,0
+M11,Kim Gahee,Audio SW,2,CL3,,0
+M12,Lee Donghee,Audio SW,2,CL2,,0
+M13,Lee Sanghun,Wireless Audio,3,CL4,,0
+M14,Kim Hyeonuk,Wireless Audio,3,CL4,,0
+M15,Yang Hyeoncheol,Wireless Audio,3,CL4,,0
+M16,Heo Seung,Wireless Audio,3,CL3,,0
+M17,Kim Seonghu,Wireless Audio,3,CL3,,0

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}파트장 대시보드{% endblock %}
+{% block content %}
+<h1>파트장 대시보드</h1>
+
+<div x-data="leaderApp('{{ current_week }}')" x-init="load()">
+
+  <!-- Week selector -->
+  <div class="card" style="display:flex;align-items:center;gap:.8rem">
+    <label style="margin:0;white-space:nowrap">조회 주차</label>
+    <input type="text" x-model="week" placeholder="2026-W23" style="width:140px">
+    <button class="btn btn-primary btn-sm" @click="load()">조회</button>
+    <span x-show="loading" style="color:#888;font-size:.85rem">불러오는 중...</span>
+  </div>
+
+  <!-- 1. 입력 현황 summary cards -->
+  <div class="grid3" x-show="data">
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;font-weight:700;color:#1a237e" x-text="data?.submission?.submitted ?? 0"></div>
+      <div style="font-size:.85rem;color:#555">입력 완료</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;font-weight:700;color:#c62828" x-text="data?.submission?.missing?.length ?? 0"></div>
+      <div style="font-size:.85rem;color:#555">미입력</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;font-weight:700;color:#555" x-text="data?.submission?.total ?? 0"></div>
+      <div style="font-size:.85rem;color:#555">전체 인원</div>
+    </div>
+  </div>
+
+  <!-- Missing list -->
+  <div class="card" x-show="data?.submission?.missing?.length > 0">
+    <h2 style="color:#c62828">미입력 파트원</h2>
+    <table>
+      <thead><tr><th>TG</th><th>이름</th></tr></thead>
+      <tbody>
+        <template x-for="m in data.submission.missing" :key="m.member_id">
+          <tr>
+            <td x-text="m.tg"></td>
+            <td x-text="m.display_name"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 2. TG별 현황 -->
+  <div class="card" x-show="data?.tg_summary?.length > 0">
+    <h2>TG별 진행 현황</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>TG</th>
+          <th style="color:#1b5e20">完 (완료)</th>
+          <th style="color:#1565c0">進 (진행)</th>
+          <th style="color:#b71c1c">이슈</th>
+          <th>합계</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="row in data.tg_summary" :key="row.tg">
+          <tr>
+            <td x-text="row.tg"></td>
+            <td style="color:#1b5e20;text-align:center" x-text="row.done"></td>
+            <td style="color:#1565c0;text-align:center" x-text="row.ongoing"></td>
+            <td style="color:#b71c1c;text-align:center" x-text="row.issue"></td>
+            <td style="text-align:center" x-text="row.done + row.ongoing + row.issue"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 3. 위험 마일스톤 -->
+  <div class="card" x-show="data?.risk_milestones?.length > 0">
+    <h2 style="color:#b71c1c">위험 마일스톤</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>과제명</th>
+          <th>트랙</th>
+          <th>유형</th>
+          <th>계획일</th>
+          <th>실제일</th>
+          <th>상태</th>
+          <th>담당자</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="ms in data.risk_milestones" :key="ms.ms_id">
+          <tr style="background:#fff8f8">
+            <td x-text="ms.project_name"></td>
+            <td x-text="ms.track"></td>
+            <td x-text="ms.type"></td>
+            <td x-text="ms.planned_date ?? '-'"></td>
+            <td x-text="ms.actual_date ?? '-'"></td>
+            <td>
+              <span class="badge-risk" x-show="ms.status === 'risk'">RISK</span>
+              <span class="badge-new" x-show="ms.status === 'pending'">지연</span>
+            </td>
+            <td x-text="ms.owner_name ?? '-'"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. MBO 달성률 -->
+  <div class="card" x-show="data?.mbo?.length > 0">
+    <h2>MBO 달성률 현황</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>파트원</th>
+          <th>TG</th>
+          <th>목표</th>
+          <th>가중치</th>
+          <th>목표값</th>
+          <th>현재값</th>
+          <th>달성률</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="m in data.mbo" :key="m.mbo_id">
+          <tr>
+            <td x-text="m.member_name"></td>
+            <td x-text="m.tg"></td>
+            <td x-text="m.title"></td>
+            <td style="text-align:center" x-text="m.weight != null ? m.weight + '%' : '-'"></td>
+            <td style="text-align:center" x-text="m.target_value ?? '-'"></td>
+            <td style="text-align:center" x-text="m.current_value"></td>
+            <td style="text-align:center"
+                :style="m.achievement_rate >= 100 ? 'color:#1b5e20;font-weight:700' :
+                        m.achievement_rate >= 50  ? 'color:#1565c0' : 'color:#b71c1c'"
+                x-text="m.achievement_rate != null ? m.achievement_rate + '%' : '-'">
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 5. 이슈 항목 -->
+  <div class="card" x-show="data?.issues?.length > 0">
+    <h2 style="color:#e65100">이번 주 이슈 항목</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>파트원</th>
+          <th>과제</th>
+          <th>항목</th>
+          <th>리스크 내용</th>
+          <th>지연 사유</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="(issue, idx) in data.issues" :key="idx">
+          <tr style="background:#fff8e1">
+            <td x-text="issue.member_name"></td>
+            <td x-text="issue.project_name"></td>
+            <td x-text="issue.item_key"></td>
+            <td x-text="issue.risk_text ?? '-'"></td>
+            <td x-text="issue.delay_reason ?? '-'"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- No data state -->
+  <div class="card" x-show="data && !data.tg_summary?.length && !data.submission?.submitted"
+       style="color:#888;text-align:center;padding:2rem">
+    이번 주 입력된 보고가 없습니다.
+  </div>
+
+  <!-- Export -->
+  <div class="card">
+    <h2>산출물 다운로드</h2>
+    <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label>주간보고 DOC</label>
+        <div style="display:flex;gap:.4rem">
+          <a :href="'/export/doc?week=' + week" class="btn btn-primary btn-sm">다운로드</a>
+        </div>
+      </div>
+      <div>
+        <label>MBO XLS (2026)</label>
+        <a href="/export/xls/mbo?year=2026" class="btn btn-primary btn-sm">다운로드</a>
+      </div>
+      <div>
+        <label>피드백 XLS</label>
+        <a href="/export/xls/feedback" class="btn btn-primary btn-sm">다운로드</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function leaderApp(initWeek) {
+  return {
+    week: initWeek,
+    data: null,
+    loading: false,
+
+    async load() {
+      this.loading = true;
+      try {
+        const r = await fetch('/api/leader/summary?week=' + encodeURIComponent(this.week));
+        this.data = await r.json();
+      } finally {
+        this.loading = false;
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

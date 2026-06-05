@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}과제 등록 완료{% endblock %}
+{% block content %}
+<h1>과제 등록 완료</h1>
+{% if project %}
+<div class="card">
+  <p><strong>과제 ID:</strong> {{ project.project_id }}</p>
+  <p><strong>과제명:</strong> {{ project.name }}</p>
+  <p><strong>유형:</strong> {{ project.track }}</p>
+  {% if project.platform %}<p><strong>플랫폼:</strong> {{ project.platform }}</p>{% endif %}
+  {% if project.background %}<p><strong>배경:</strong> {{ project.background }}</p>{% endif %}
+  {% if milestones %}
+  <h2>마일스톤</h2>
+  <table>
+    <tr><th>MS</th><th>계획일</th><th>상태</th></tr>
+    {% for ms in milestones %}
+    <tr><td>{{ ms.type }}</td><td>{{ ms.planned_date or '-' }}</td><td>{{ ms.status }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+<p>
+  <a href="/register" class="btn btn-primary btn-sm">추가 등록</a>
+  <a href="/weekly" class="btn btn-primary btn-sm" style="margin-left:.5rem">주간 입력</a>
+</p>
+{% endblock %}
