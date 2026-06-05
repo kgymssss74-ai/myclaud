@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}과제 등록{% endblock %}
+{% block content %}
+<h1>신규 과제 등록</h1>
+
+<div class="card" x-data="{
+  track: '',
+  submit() {
+    const form = document.getElementById('reg-form');
+    const fd = new FormData(form);
+    fetch('/register', { method: 'POST', body: fd })
+      .then(r => {
+        if (r.redirected) { window.location.href = r.url; return; }
+        if (r.status === 422) return r.json().then(d => {
+          document.getElementById('err').textContent = d.errors.join(' / ');
+        });
+      }).catch(() => form.submit());
+  }
+}">
+
+  <div id="err" class="error-box" style="display:none;margin-bottom:.6rem"></div>
+
+  <form id="reg-form" method="post" action="/register"
+        @submit.prevent="submit">
+
+    <label>과제 유형 *</label>
+    <select name="track" x-model="track" required>
+      <option value="">-- 선택 --</option>
+      <option value="device">device (양산)</option>
+      <option value="advance">advance (선행)</option>
+      <option value="review">review (검토)</option>
+    </select>
+
+    <label>과제명 *</label>
+    <input type="text" name="name" placeholder="과제명 입력" required>
+
+    <label>담당자 *</label>
+    <select name="owner_member_id" required>
+      <option value="">-- 선택 --</option>
+      {% for m in members %}
+      <option value="{{ m.member_id }}">{{ m.display_name or m.name }} ({{ m.member_id }})</option>
+      {% endfor %}
+    </select>
+
+    <label>등록 주차</label>
+    <input type="text" name="created_week" placeholder="예: 2026-W24">
+
+    <!-- device fields -->
+    <div x-show="track === 'device'" x-cloak>
+      <label>플랫폼 *</label>
+      <input type="text" name="platform" placeholder="예: QC SM8850">
+      <div class="grid2" style="margin-top:.5rem">
+        {% for ms in ['DVR','PVR','PRA','SRA'] %}
+        <div>
+          <label>{{ ms }} 계획일</label>
+          <input type="date" name="date_{{ ms }}">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- advance fields -->
+    <div x-show="track === 'advance'" x-cloak>
+      <label>배경/목표 *</label>
+      <textarea name="background" placeholder="선행 과제 배경 및 목표 기술"></textarea>
+      <div class="grid2" style="margin-top:.5rem">
+        {% for ms in ['EA','ER1','ER2','CA'] %}
+        <div>
+          <label>{{ ms }} 계획일</label>
+          <input type="date" name="date_{{ ms }}">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- review fields -->
+    <div x-show="track === 'review'" x-cloak>
+      <label>배경/목표 *</label>
+      <textarea name="background" placeholder="검토 과제 배경 및 목표 기술"></textarea>
+    </div>
+
+    <div style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary"
+              :disabled="track === ''">등록</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

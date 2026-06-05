@@ -1,6 +1,7 @@
-"""waitress WSGI runner (stub — Phase 2 completes this)."""
 from waitress import serve
-from app import app
+from app import create_app
 
 if __name__ == '__main__':
-    serve(app, host='0.0.0.0', port=5000, threads=4)
+    application = create_app()
+    print('Starting weekly-report-system on http://0.0.0.0:5000')
+    serve(application, host='0.0.0.0', port=5000, threads=4)

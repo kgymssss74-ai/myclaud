@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}조회 대시보드{% endblock %}
+{% block content %}
+<h1>3축 조회 대시보드</h1>
+
+<div x-data="dashApp()" x-init="loadMilestoneStatus()">
+
+  <!-- Milestone overview chart -->
+  <div class="card">
+    <h2>마일스톤 현황</h2>
+    <canvas id="msChart" height="80"></canvas>
+  </div>
+
+  <!-- Query tabs -->
+  <div class="card">
+    <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+      <button class="btn btn-sm" :class="tab==='member'?'btn-primary':''"
+              @click="tab='member'">파트원별</button>
+      <button class="btn btn-sm" :class="tab==='project'?'btn-primary':''"
+              @click="tab='project'">과제별</button>
+      <button class="btn btn-sm" :class="tab==='tag'?'btn-primary':''"
+              @click="tab='tag'">태그별</button>
+    </div>
+
+    <!-- Member query -->
+    <div x-show="tab==='member'">
+      <div class="grid3">
+        <div>
+          <label>파트원</label>
+          <select x-model="qMember">
+            <option value="">-- 선택 --</option>
+            {% for m in members %}
+            <option value="{{ m.member_id }}">{{ m.display_name or m.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>From 주차</label>
+          <input type="text" x-model="qFrom" placeholder="2026-W01">
+        </div>
+        <div>
+          <label>To 주차</label>
+          <input type="text" x-model="qTo" placeholder="2026-W52">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:.5rem"
+              @click="queryMember()">조회</button>
+    </div>
+
+    <!-- Project query -->
+    <div x-show="tab==='project'">
+      <div class="grid3">
+        <div>
+          <label>과제</label>
+          <select x-model="qProject">
+            <option value="">-- 선택 --</option>
+            {% for p in projects %}
+            <option value="{{ p.project_id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>From 주차</label>
+          <input type="text" x-model="qFrom" placeholder="2026-W01">
+        </div>
+        <div>
+          <label>To 주차</label>
+          <input type="text" x-model="qTo" placeholder="2026-W52">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:.5rem"
+              @click="queryProject()">조회</button>
+    </div>
+
+    <!-- Tag query -->
+    <div x-show="tab==='tag'">
+      <div class="grid3">
+        <div>
+          <label>태그</label>
+          <select x-model="qTag">
+            <option value="">-- 선택 --</option>
+            {% for t in tags %}
+            <option value="{{ t.name }}">{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>From 주차</label>
+          <input type="text" x-model="qFrom">
+        </div>
+        <div>
+          <label>To 주차</label>
+          <input type="text" x-model="qTo">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:.5rem"
+              @click="queryTag()">조회</button>
+    </div>
+
+    <!-- Results -->
+    <div x-show="results.length > 0" style="margin-top:.8rem;overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <template x-for="col in resultCols" :key="col">
+              <th x-text="col"></th>
+            </template>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(row, i) in results" :key="i">
+            <tr>
+              <template x-for="col in resultCols" :key="col">
+                <td x-text="row[col] ?? ''"></td>
+              </template>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+    <div x-show="queried && results.length === 0" style="color:#888;margin-top:.5rem">
+      검색 결과가 없습니다.
+    </div>
+  </div>
+
+  <!-- Export links -->
+  <div class="card">
+    <h2>산출물 다운로드</h2>
+    <div style="display:flex;gap:.8rem;flex-wrap:wrap">
+      <div>
+        <label>주간보고 DOC</label>
+        <div style="display:flex;gap:.4rem">
+          <input type="text" x-model="exportWeek" placeholder="2026-W23" style="width:140px">
+          <a :href="'/export/doc?week=' + exportWeek" class="btn btn-primary btn-sm">다운로드</a>
+        </div>
+      </div>
+      <div>
+        <label>MBO XLS</label>
+        <div style="display:flex;gap:.4rem">
+          <input type="text" x-model="exportYear" placeholder="2026" style="width:80px">
+          <a :href="'/export/xls/mbo?year=' + exportYear" class="btn btn-primary btn-sm">다운로드</a>
+        </div>
+      </div>
+      <div>
+        <label>피드백 XLS (전체)</label>
+        <a href="/export/xls/feedback" class="btn btn-primary btn-sm">다운로드</a>
+      </div>
+      <div>
+        <label>평가 XLS</label>
+        <a :href="'/export/xls/eval?year=' + exportYear" class="btn btn-primary btn-sm">다운로드</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/vendor/chart.min.js"></script>
+<script>
+function dashApp() {
+  return {
+    tab: 'member',
+    qMember: '', qProject: '', qTag: '', qFrom: '', qTo: '',
+    results: [], resultCols: [], queried: false,
+    exportWeek: '', exportYear: '2026',
+    msChart: null,
+
+    async loadMilestoneStatus() {
+      const r = await fetch('/api/query/milestone-status');
+      const rows = await r.json();
+      const counts = { done: 0, pending: 0, risk: 0 };
+      rows.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+
+      const ctx = document.getElementById('msChart');
+      if (!ctx || typeof Chart === 'undefined') return;
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['완료', '진행', '위험'],
+          datasets: [{ data: [counts.done, counts.pending, counts.risk],
+            backgroundColor: ['#4caf50','#2196f3','#f44336'] }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+    },
+
+    async queryMember() {
+      const r = await fetch(
+        `/api/query/member?member_id=${this.qMember}&from_week=${this.qFrom}&to_week=${this.qTo}`
+      );
+      const data = await r.json();
+      this.setResults(data);
+    },
+
+    async queryProject() {
+      const r = await fetch(
+        `/api/query/project?project_id=${this.qProject}&from_week=${this.qFrom}&to_week=${this.qTo}`
+      );
+      const data = await r.json();
+      this.setResults(data);
+    },
+
+    async queryTag() {
+      const r = await fetch(
+        `/api/query/tag?tag=${encodeURIComponent(this.qTag)}&from_week=${this.qFrom}&to_week=${this.qTo}`
+      );
+      const data = await r.json();
+      this.setResults(data);
+    },
+
+    setResults(data) {
+      this.queried = true;
+      this.results = data;
+      this.resultCols = data.length ? Object.keys(data[0]) : [];
+    },
+  };
+}
+</script>
+{% endblock %}
