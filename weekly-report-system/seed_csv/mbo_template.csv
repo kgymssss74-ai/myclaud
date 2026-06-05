@@ -1,0 +1,14 @@
+mbo_id,member_id,year,title,weight,target_metric,target_value,linked_project_id
+# === 파트장(M01) 확정분: KB4 기반 ===
+MBO001,M01,2026,SoundBooster Optimization (Q8/H8/B8),15,MCPS reduction,30 MCPS (43->30 30%down),P01
+MBO002,M01,2026,SoundBooster Optimization (GTS12),0,MCPS,108 MCPS,P02
+MBO003,M01,2026,Spatial Audio (360 Audio),15,Latency,270->190ms,P14
+MBO004,M01,2026,Wireless Codec (SSC/RVP commercialization),10,Milestone pass,DVR/PVR/PRA on schedule,P05
+MBO005,M01,2026,Wireless Codec (LE Audio advance),0,PEAQ,5.0@High/Mid,P13
+MBO006,M01,2026,AI PLC,0,PEAQ,2.59@10%,P15
+MBO007,M01,2026,AI BWE,0,PEAQ,4.6 (current 4.20),P16
+MBO008,M01,2026,Patent development,10,count per person,5 patents,
+MBO009,M01,2026,AI utilization (AX innovation),10,dev time reduction,25-50%down,
+# === 파트원 16인: 연초 확정 MBO를 아래 형식으로 채워주세요 ===
+# 빈 행 예시 (member_id별 3~5건, weight 합계 100):
+# MBO101,M02,2026,<목표명>,<가중치>,<목표지표>,<목표값>,<연결과제ID(선택)>

@@ -265,12 +265,19 @@ def main():
     if args.csv_dir:
         csv_dir = Path(args.csv_dir)
     else:
-        upload_root = Path('/root/.claude/uploads')
-        candidates = sorted(upload_root.glob('*/*members.csv'))
-        if not candidates:
-            sys.exit('ERROR: Could not find members.csv. Pass --csv-dir explicitly.')
-        csv_dir = candidates[-1].parent
-        print(f'Auto-detected CSV dir: {csv_dir}')
+        # 1순위: 패키지 내 seed_csv/
+        local_seed = Path(__file__).parent.parent / 'seed_csv'
+        if local_seed.exists() and (local_seed / 'members.csv').exists():
+            csv_dir = local_seed
+            print(f'seed_csv/ 사용: {csv_dir}')
+        else:
+            # 2순위: 개발환경 uploads 자동탐지
+            upload_root = Path('/root/.claude/uploads')
+            candidates = sorted(upload_root.glob('*/*members.csv'))
+            if not candidates:
+                sys.exit('ERROR: seed_csv/members.csv 또는 --csv-dir 를 지정하세요.')
+            csv_dir = candidates[-1].parent
+            print(f'Auto-detected CSV dir: {csv_dir}')
 
     print(f'Importing into: {args.db}')
     conn = connect(args.db)

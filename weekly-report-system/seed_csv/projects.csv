@@ -1,0 +1,21 @@
+project_id,name,track,platform,background,owner_member_id,created_week,tg
+P01,Q8/H8/B8 SoundBooster v30.0,device,QC SM8850,,M02,W24,Audio Solution
+P02,GTS12 RV55 SoundBooster (4ch),device,MTK RV55/DX5,,M10,W24,Audio Solution
+P03,Jinju SoundBooster/SSC,device,F1 DSP,,M02,W24,Audio Solution
+P04,Watch9 Noise Monitor,device,QC SW6100,,M09,W24,Audio SW
+P05,ABLE SSC/RVP Porting,device,QC,,M13,W24,Wireless Audio
+P06,Origin Android PC SSC/RVP/SBC,device,Android PC,,M13,W24,Wireless Audio
+P07,TabS12 RVP ADSP Offloading,device,QC ADSP,,M16,W24,Wireless Audio
+P08,Glass Jinju SSC/RVP,device,F1 DSP,,M14,W24,Wireless Audio
+P09,Glass Haean SSC/RVP,device,F1 DSP,,M14,W24,Wireless Audio
+P10,NLC Advance (Nonlinear Control),advance,,SPK nonlinear distortion control via TCN/Mamba AI model and AI pre-distortion; target SPK nonlinearity -10dB / Duct 75pt+,M05,W24,Audio Solution
+P11,VBE Advance (Virtual Bass Enhancement),advance,,Polynomial NLD based virtual bass enhancement; CoA(IP17PM) analysis done; Hilbert Transform NLD implemented,M05,W24,Audio Solution
+P12,Galaxy Symphony,advance,,Phone+Buds dual-output control SW with AV Sync correction and Dynamic Audio Rendering; S27 phone+1 BT device / S28 phone+2,M08,W24,Audio SW
+P13,LE SSC Advance (S27),advance,,LE Audio default codec advance development; UHQ band-wise bit-allocation optimization; PEAQ 5.0 KPI,M13,W24,Wireless Audio
+P14,360 Audio LE & Head Tracking,advance,,LE default 360 Audio ADSP porting; latency 270->190ms target,M08,W24,Audio SW
+P15,AI PLC (Buds5F),advance,,AI Packet Loss Concealment; CRN PLC refactoring; CM55 25 MCPs target; PLC:BWE=7:3,M17,W24,Wireless Audio
+P16,AI BWE (Buds5F),advance,,AI Bandwidth Extension 16k->48kHz; PEAQ 4.6 target (current 4.20); dataset cleanup and retrain,M17,W24,Wireless Audio
+P17,Next TabS 4-channel Spatial Audio,review,,TabS 4 SPK immersive rendering with IAMF format; Height channel top-SPK mixing,M08,W24,Audio SW
+P18,Netflix DD+ JOC Height Channel,review,,SW done; Netflix whitelist activation pending for DD+ JOC Height channel,M08,W24,Audio SW
+P19,Privacy Call Advance,review,,DPS mechanism vs Mate80 performance review,M04,W24,Audio Solution
+P20,Audio Eraser Differentiation,review,,Nudge 97% accuracy; preceding-lab handover needed,M03,W24,Audio SW
