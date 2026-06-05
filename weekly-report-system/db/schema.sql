@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_ms_history_ms ON milestone_history(ms_id);
 -- 5. mbo_objectives  (before report_items — report_items has FK here)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS mbo_objectives (
-    mbo_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    mbo_id            TEXT PRIMARY KEY,
     member_id         TEXT NOT NULL REFERENCES members(member_id),
     year              INTEGER NOT NULL,
     title             TEXT NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS report_items (
     risk_text     TEXT,
     delay_reason  TEXT,
     ms_id         TEXT REFERENCES milestones(ms_id),
-    mbo_id        INTEGER REFERENCES mbo_objectives(mbo_id),
+    mbo_id        TEXT REFERENCES mbo_objectives(mbo_id),
     status        TEXT CHECK(status IN ('完', '進', '이슈')),
     prev_item_id  INTEGER REFERENCES report_items(item_id)
 );

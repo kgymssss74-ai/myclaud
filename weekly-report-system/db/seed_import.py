@@ -30,6 +30,17 @@ def nullable(val: str) -> str | None:
     return v if v else None
 
 
+def find_csv(csv_dir: Path, name: str) -> Path:
+    """Find a CSV by exact name or by '*-<name>' pattern (handles upload hash prefixes)."""
+    exact = csv_dir / name
+    if exact.exists():
+        return exact
+    candidates = sorted(csv_dir.glob(f'*-{name}'))
+    if not candidates:
+        raise FileNotFoundError(f'Cannot find {name} (or *-{name}) in {csv_dir}')
+    return candidates[-1]
+
+
 def read_csv(path: Path) -> list[dict]:
     """Read CSV, skipping blank lines and lines starting with '#'."""
     lines: list[str] = []
@@ -57,20 +68,24 @@ def connect(db_path: str) -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 
 def import_members(conn: sqlite3.Connection, csv_dir: Path) -> None:
-    members = {r['member_id']: r for r in read_csv(csv_dir / 'members.csv')}
+    raw = list(read_csv(find_csv(csv_dir, 'members.csv')))
     display = {r['member_id']: r['display_name']
-               for r in read_csv(csv_dir / 'member_display_names.csv')}
+               for r in read_csv(find_csv(csv_dir, 'member_display_names.csv'))}
 
+    # Build name→member_id map for mentor FK translation
+    name_to_id = {r['name']: r['member_id'] for r in raw}
+
+    # Pass 1: insert all members without mentor (avoids FK ordering issues)
     rows = []
-    for mid, r in members.items():
+    for r in raw:
         rows.append((
-            mid,
+            r['member_id'],
             r['name'],
-            display.get(mid),
+            display.get(r['member_id']),
             r['tg'],
             int(r['tg_order']),
             nullable(r['cl_level']),
-            nullable(r['mentor']),
+            None,  # mentor inserted in pass 2
             int(r.get('is_part_leader', '0') or '0'),
         ))
 
@@ -80,13 +95,28 @@ def import_members(conn: sqlite3.Connection, csv_dir: Path) -> None:
            VALUES (?,?,?,?,?,?,?,?)''',
         rows,
     )
+
+    # Pass 2: update mentor — CSV stores mentor by name, convert to member_id
+    mentor_updates = []
+    for r in raw:
+        raw_mentor = nullable(r.get('mentor', ''))
+        if raw_mentor:
+            mentor_id = name_to_id.get(raw_mentor, raw_mentor)  # fallback: use as-is
+            mentor_updates.append((mentor_id, r['member_id']))
+
+    if mentor_updates:
+        conn.executemany(
+            'UPDATE members SET mentor=? WHERE member_id=?',
+            mentor_updates,
+        )
+
     conn.commit()
-    print(f'  members: {len(rows)} rows')
+    print(f'  members: {len(rows)} rows (mentor links: {len(mentor_updates)})')
 
 
 def import_projects(conn: sqlite3.Connection, csv_dir: Path) -> None:
     rows = []
-    for r in read_csv(csv_dir / 'projects.csv'):
+    for r in read_csv(find_csv(csv_dir, 'projects.csv')):
         track = r['track'].strip()
         if track not in ('device', 'advance', 'review'):
             print(f"  WARNING: unknown track {track!r} for {r['project_id']}, skipping")
@@ -115,7 +145,7 @@ def import_projects(conn: sqlite3.Connection, csv_dir: Path) -> None:
 
 def import_milestones(conn: sqlite3.Connection, csv_dir: Path) -> None:
     rows = []
-    for i, r in enumerate(read_csv(csv_dir / 'milestones.csv'), start=1):
+    for i, r in enumerate(read_csv(find_csv(csv_dir, 'milestones.csv')), start=1):
         pid = r['project_id']
         ms_type = r['type']
         ms_id = f'MS{i:03d}'
@@ -141,7 +171,7 @@ def import_milestones(conn: sqlite3.Connection, csv_dir: Path) -> None:
 
 def import_mbo(conn: sqlite3.Connection, csv_dir: Path) -> None:
     rows = []
-    for r in read_csv(csv_dir / 'mbo_template.csv'):
+    for r in read_csv(find_csv(csv_dir, 'mbo_template.csv')):
         if not r.get('mbo_id') or not r.get('title', '').strip():
             continue
         rows.append((
@@ -167,7 +197,7 @@ def import_mbo(conn: sqlite3.Connection, csv_dir: Path) -> None:
 
 
 def import_tags(conn: sqlite3.Connection, csv_dir: Path) -> None:
-    rows = [(r['name'],) for r in read_csv(csv_dir / 'tags.csv') if r.get('name')]
+    rows = [(r['name'],) for r in read_csv(find_csv(csv_dir, 'tags.csv')) if r.get('name')]
     conn.executemany('INSERT OR IGNORE INTO tags(name) VALUES (?)', rows)
     conn.commit()
     print(f'  tags: {len(rows)} rows')
@@ -236,7 +266,7 @@ def main():
         csv_dir = Path(args.csv_dir)
     else:
         upload_root = Path('/root/.claude/uploads')
-        candidates = sorted(upload_root.glob('*/members.csv'))
+        candidates = sorted(upload_root.glob('*/*members.csv'))
         if not candidates:
             sys.exit('ERROR: Could not find members.csv. Pass --csv-dir explicitly.')
         csv_dir = candidates[-1].parent
