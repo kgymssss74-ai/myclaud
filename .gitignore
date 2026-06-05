@@ -9,3 +9,6 @@ weekly-report-system/*.db
 weekly-report-system/uploads/
 weekly-report-system/backup/*.zip
 
+# release artifacts
+*.zip
+
