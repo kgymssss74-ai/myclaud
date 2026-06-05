@@ -19,12 +19,14 @@ def create_app(db_path=None, upload_folder=None):
     from routes.preview_diff import bp as diff_bp
     from routes.query import bp as query_bp
     from routes.export_routes import bp as export_bp
+    from routes.leader import bp as leader_bp
 
     app.register_blueprint(register_bp)
     app.register_blueprint(weekly_bp)
     app.register_blueprint(diff_bp)
     app.register_blueprint(query_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(leader_bp)
 
     @app.route('/')
     def index():
